@@ -11,7 +11,7 @@ function same(a: string, b: string): boolean {
 }
 const fail = (status: number, detail: string) =>
   new Response(JSON.stringify({ status: "Error", details: [detail] }), {
-    status, headers: { "content-type": "application/json", "x-cfproxy-status": "Error" },
+    status, headers: { "content-type": "application/json", "x-cfproxy-status": "Error", "cache-control": "private, no-store" },
   });
 
 Deno.serve(async (req) => {
@@ -39,6 +39,11 @@ Deno.serve(async (req) => {
     const out = new Headers(res.headers);
     out.set("x-cfproxy-status", "OK");
     out.delete("content-encoding"); out.delete("content-length");
+    // Все запросы идут на один URL приложения: без запрета кеша edge кеширует
+    // ответ по URL, игнорируя x-cfproxy-* заголовки, и отдаёт чужие/устаревшие
+    // тела (в том числе без проверки пароля).
+    out.delete("age"); out.delete("expires");
+    out.set("cache-control", "private, no-store");
     return new Response(res.body, { status: res.status, headers: out });
   } catch (e) {
     return fail(500, "Proxy request failed: " + (e instanceof Error ? e.message : "Unknown error"));
